@@ -2,9 +2,12 @@ databases:
   - name: "AVTR_DB_S_{{env}}_{{source}}"
   
 schemas:
-  - name: "CLEANED"  
+  - name: CLEANED
+    database: "AVTR_DB_S_{{env}}_{{source}}"
   - name: "RAW"
+    database: "AVTR_DB_S_{{env}}_{{source}}"
   - name: "TRANSFORM"
+    database: "AVTR_DB_S_{{env}}_{{source}}"
   
 {% if create_wh is defined %}
 warehouses:                         
