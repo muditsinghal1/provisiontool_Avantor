@@ -2,12 +2,12 @@ databases:
   - name: "AVTR_DB_S_{{env}}_{{source}}"
   
 schemas:
-  - name: CLEANED  #Need to check on schmeas creation strategy for Fivetran with Balbir ?
+  - name: CLEANED  
   - name: RAW
   - name: TRANSFORM
   
 {% if create_wh is defined %}
-warehouses:                         # For Fivetran we need single WH which will be used by each DB Source. Check with Balbir how to do it?
+warehouses:                         
   - name: "AVTR_{{env}}_{{source}}_WH"  
     properties:
       INITIALLY_SUSPENDED: true
@@ -65,7 +65,7 @@ roleGrants:
   # DR_RW to FR_ENGINEER
   - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
     toRoles:
-      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"   # Need to change FR role name as it will be used by Fivertran--> FR_PRJ_RL_AVTR_{{env}}_FIVETRAN_ENGINEER
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"   
   # AR TASK OPERATOR to FR_ENGINEER
   - name: "AR_A_TASK_OPERATOR"
     toRoles:
