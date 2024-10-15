@@ -1,6 +1,6 @@
 #Create Source DBs and Roles along with DB Objects
-template:
-  path: source.yaml
+#template:
+#  path: source/dev/source.yaml
 
 defaults:
   scaling_policy: ECONOMY
