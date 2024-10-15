@@ -65,7 +65,7 @@ roleGrants:
   # DR_RW to FR_ENGINEER
   - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
     toRoles:
-      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"   # Need to change FR role name as it will be used by Fivertran--> FR_PRJ_RL_AVTR_{{ENV}}_FIVETRAN_ENGINEER
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"   # Need to change FR role name as it will be used by Fivertran--> FR_PRJ_RL_AVTR_{{env}}_FIVETRAN_ENGINEER
   # AR TASK OPERATOR to FR_ENGINEER
   - name: "AR_A_TASK_OPERATOR"
     toRoles:
