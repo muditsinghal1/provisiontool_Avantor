@@ -1,0 +1,22 @@
+#Create Source DBs and Roles along with DB Objects
+template:
+  path: source.yaml
+
+defaults:
+  scaling_policy: ECONOMY
+  auto_suspend: 600
+  auto_resume: true
+  statement_queued_timeout_in_seconds: 7200
+  statement_timeout_in_seconds: 1800
+  create_wh: true # Do we need seperate WH for each Source DB ?
+  after_clone: false
+#  serviceaccounts:
+#    - name: SVC_ELT_DEV_RL
+
+entries:
+  - env: DEV
+    source: SAP_HANA_NA
+    resourceMonitor: SAP_HANA_NA_RM
+  - env: DEV
+    source: SAP_HANA_EU
+    resourceMonitor: SAP_HANA_NA_RM

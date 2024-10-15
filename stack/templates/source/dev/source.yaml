@@ -1,0 +1,397 @@
+databases:
+  - name: "AVTR_DB_S_{{env}}_{{source}}"
+  
+schemas:
+  - name: CLEANED  #Need to check on schmeas creation strategy for Fivetran with Balbir ?
+  - name: RAW
+  - name: TRANSFORM
+  
+{% if create_wh is defined %}
+warehouses:                         # For Fivetran we need single WH which will be used by each DB Source. Check with Balbir how to do it?
+  - name: "AVTR_{{env}}_{{source}}_WH"  
+    properties:
+      INITIALLY_SUSPENDED: true
+      SCALING_POLICY: {{ scaling_policy }}
+      AUTO_SUSPEND: {{ auto_suspend }}
+      AUTO_RESUME: {{ auto_resume }}
+      {% if warehouse_size is defined %}
+      WAREHOUSE_SIZE: {{ warehouse_size }}
+      {% endif %}
+      {% if min_cluster_count is defined %}
+      MIN_CLUSTER_COUNT: {{ min_cluster_count }}
+      {% endif %}
+      {% if max_cluster_count is defined %}
+      MAX_CLUSTER_COUNT: {{ max_cluster_count }}
+      {% endif %}
+      {% if statement_queued_timeout_in_seconds is defined %}
+      STATEMENT_QUEUED_TIMEOUT_IN_SECONDS: {{ statement_queued_timeout_in_seconds }}
+      {% endif %}
+      {% if statement_timeout_in_seconds is defined %}
+      STATEMENT_TIMEOUT_IN_SECONDS: {{ statement_timeout_in_seconds }}
+      {% endif %}
+      {% if resourceMonitor is defined %}
+      RESOURCE_MONITOR: "{{resourceMonitor}}"
+      {% endif %}
+{% endif %}
+
+
+roles:
+  # Access role
+  - name: "AR_RL_AVTR_{{env}}_{{source}}"
+  # Data role
+  - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+  - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+  # Functional role
+  - name: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+  - name: "FR_S_RL_AVTR_{{env}}_{{source}}_READER"
+
+roleGrants:
+  # AR to READER
+  - name: "AR_RL_AVTR_{{env}}_{{source}}"
+    toRoles:
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_READER"
+  # AR to Engineer
+  - name: "AR_RL_AVTR_{{env}}_{{source}}"
+    toRoles:
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+  # DR_RO to DR_RW
+  - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    toRoles:
+      - "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+  # DR_RO to READER
+  - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    toRoles:
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_READER"
+  # DR_RW to FR_ENGINEER
+  - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    toRoles:
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"   # Need to change FR role name as it will be used by Fivertran--> FR_PRJ_RL_AVTR_{{ENV}}_FIVETRAN_ENGINEER
+  # AR TASK OPERATOR to FR_ENGINEER
+  - name: "AR_A_TASK_OPERATOR"
+    toRoles:
+      - "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+  # FR_ENGINEER to SYSADMIN  
+  - name: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    toRoles:
+      - "SYSADMIN"
+  # FR_READER to SYSADMIN  
+  - name: "FR_S_RL_AVTR_{{env}}_{{source}}_READER"
+    toRoles:
+      - "SYSADMIN"
+  # DR_RO to ALL_DB_PRODUCT_RO
+  - name: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    toRoles:
+      - "FR_ALL_DB_PRODUCT_RO"
+
+
+privilegeGrants:
+  # Grant all privileges to warehouse to SYSADMIN; Only when there is flag to create new warehouse.
+  {% if create_wh is defined and create_wh is sameas true %}
+  # Grant usage on warehouse to AR role
+  - privilege: "USAGE"
+    objectType: "WAREHOUSE"
+    objectName: "AVTR_{{env}}_{{source}}_WH"
+    roleName: "AR_RL_AVTR_{{env}}_{{source}}"
+    grantOption: false
+  {% endif %}
+  #Grant all privileges on database to SYSADMIN
+  - privilege: "ALL PRIVILEGES"
+    objectType: "DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "SYSADMIN"
+    grantOption: true
+  # Grant CREATE SCHEMA on database to FR_ENGINEER for "Fivetran"
+  - privilege: "CREATE SCHEMA"
+    objectType: "DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    grantOption: true
+  # Grant USAGE privileges on database to DR_RO
+  - privilege: "USAGE"
+    objectType: "DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  # Grant ALL privileges on all & FUTURE schema in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL SCHEMAS IN DATABASE" 
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: true
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE SCHEMAS IN DATABASE" 
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: true
+  # Grant USAGE privileges on all & future schema in database to DR_RO   
+  - privilege: "USAGE"
+    objectType: "ALL SCHEMAS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "USAGE"
+    objectType: "FUTURE SCHEMAS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    # TABLE
+  # Grant ALL privileges on ALL & FUTURE "TABLES" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  # Grant SELECT privileges on ALL & FUTURE  "TABLES" in database to DR_RO
+  - privilege: "SELECT"
+    objectType: "ALL TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "SELECT"
+    objectType: "FUTURE TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    # External Table
+  # Grant "ALL" privileges on ALL & FUTURE  "EXTERNAL TABLES" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL EXTERNAL TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE EXTERNAL TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  # Grant "SELECT" privileges on ALL & FUTURE  "EXTERNAL TABLES" in database to DR_RO
+  - privilege: "SELECT"
+    objectType: "ALL EXTERNAL TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "SELECT"
+    objectType: "FUTURE EXTERNAL TABLES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    # View
+  # Grant "ALL" privileges on ALL & FUTURE  "VIEWS" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  # Grant "SELECT" privileges on ALL & FUTURE  "VIEWS" in database to DR_RO
+  - privilege: "SELECT"
+    objectType: "ALL VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "SELECT"
+    objectType: "FUTURE VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    #Materialized view
+  # Grant "ALL" privileges on ALL & FUTURE  "MATERIALIZED VIEW" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL MATERIALIZED VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE MATERIALIZED VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  # Grant "SELECT" privileges on ALL & FUTURE  "MATERIALIZED VIEW" in database to DR_RO
+  - privilege: "SELECT"
+    objectType: "ALL MATERIALIZED VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "SELECT"
+    objectType: "FUTURE MATERIALIZED VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    #Stream
+  # Grant "ALL" privileges on ALL & FUTURE  "STREAMS" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL STREAMS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false  
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE STREAMS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+    # Task
+  # Grant "ALL" privileges on ALL & FUTURE  "TASK" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL TASKS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE TASKS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  # Grant "SELECT" privileges on ALL & FUTURE  "TASK" in database to DR_RO
+  - privilege: "MONITOR"
+    objectType: "ALL TASKS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "MONITOR"
+    objectType: "FUTURE TASKS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    # Stage
+  # Grant "ALL" privileges on ALL & FUTURE  "STAGE" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL STAGES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE STAGES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  # Grant "SELECT" privileges on ALL & FUTURE  "STAGE" in database to DR_RO
+  - privilege: "READ"
+    objectType: "ALL STAGES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+  - privilege: "READ"
+    objectType: "FUTURE STAGES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RO"
+    grantOption: false
+    # File Format
+  # Grant "ALL" privileges on ALL & FUTURE  "FILE FORMAT" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL FILE FORMATS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE FILE FORMATS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+    # Sequence
+  # Grant "ALL" privileges on ALL & FUTURE  "SEQUENCE" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL SEQUENCES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE SEQUENCES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+    # Function
+  # Grant "ALL" privileges on ALL & FUTURE  "FUNCTION" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL FUNCTIONS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE FUNCTIONS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+    # Procedure
+  # Grant "ALL" privileges on ALL & FUTURE  "PROCEDURE" in database to DR_RW
+  - privilege: "ALL PRIVILEGES"
+    objectType: "ALL PROCEDURES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+  - privilege: "ALL PRIVILEGES"
+    objectType: "FUTURE PROCEDURES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "DR_RL_AVTR_S_{{env}}_{{source}}_RW"
+    grantOption: false
+
+  {% if after_clone is defined and after_clone is sameas true %}   #Cloning Process. Not required for Source DBs
+  - privilege: "OWNERSHIP"
+    objectType: "DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "SYSADMIN"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL SCHEMAS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "SYSADMIN"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL TABLES IN database"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL MATERIALIZED VIEWS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL STAGES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL FILE FORMATS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL FUNCTIONS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL PROCEDURES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL SEQUENCES IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL STREAMS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  - privilege: "OWNERSHIP"
+    objectType: "ALL TASKS IN DATABASE"
+    objectName: "AVTR_DB_S_{{env}}_{{source}}"
+    roleName: "FR_S_RL_AVTR_{{env}}_{{source}}_ENGINEER"
+    currentGrants: REVOKE
+  {% endif %}
